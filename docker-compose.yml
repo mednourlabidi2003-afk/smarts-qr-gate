@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: smarts-qr-gate-postgres
+    environment:
+      POSTGRES_DB: qr_gate
+      POSTGRES_USER: smarts
+      POSTGRES_PASSWORD: smarts
+    ports:
+      - "5433:5432"
+    volumes:
+      - gate_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smarts -d qr_gate"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  virtual-gate:
+    build: .
+    container_name: smarts-virtual-qr-gate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    ports:
+      - "8020:8020"
+    restart: unless-stopped
+
+volumes:
+  gate_postgres_data:

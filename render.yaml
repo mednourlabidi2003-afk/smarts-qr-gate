@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: smarts-qr-gate
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: APP_NAME
+        value: SMARTS QR Gate
+      - key: AUTO_SEED
+        value: "false"
+      - key: AUTO_CLOSE_SECONDS
+        value: "5"
+      - key: ACCESS_LOG_LIMIT
+        value: "100"
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SSLMODE
+        value: require
