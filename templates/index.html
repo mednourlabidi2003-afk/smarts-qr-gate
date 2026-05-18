@@ -7,162 +7,55 @@
   <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
 </head>
 <body>
-  <div class="shell">
-    <header class="topbar">
-      <div>
-        <p class="eyebrow">SMARTS smart parking</p>
-        <h1>{{ app_name }}</h1>
-      </div>
-      <div class="meta-block">
-        <div class="meta-label">Real-time gate simulation</div>
-        <div class="meta-value">QR ticket validation dashboard</div>
-      </div>
+  <main class="shell">
+    <header class="hero">
+      <p class="eyebrow">SMARTS Gate</p>
+      <h1>QR Gate Scanner</h1>
+      <p class="hero-copy">A clean view of the scanner, the barrier, and the reason it moves.</p>
     </header>
 
-    <section class="hero-grid">
-      <div class="panel gate-panel">
-        <div class="panel-heading">
+    <section class="dashboard-grid">
+      <article class="card scanner-card">
+        <div class="section-head">
+          <p class="section-kicker">Scanner</p>
+          <h2>QR Camera</h2>
+        </div>
+
+        <div class="scanner-frame">
+          <video id="scannerVideo" class="scanner-video" playsinline muted></video>
+          <div class="scanner-reticle" aria-hidden="true"></div>
+        </div>
+
+        <div class="scanner-actions">
+          <button id="startScanner" class="action-btn primary">Start Scan</button>
+          <button id="stopScanner" class="action-btn secondary">Stop Scan</button>
+        </div>
+
+        <p id="scannerStatus" class="scanner-status">Scanner idle.</p>
+      </article>
+
+      <article class="card gate-card">
+        <div class="gate-head">
           <div>
-            <p class="panel-kicker">Barrier animation</p>
-            <h2>Virtual Parking Gate</h2>
+            <p class="section-kicker">Gate</p>
+            <h2 id="gateStateTitle">Gate closed</h2>
           </div>
           <span id="gateStatusPill" class="status-pill closed">CLOSED</span>
         </div>
 
         <div class="gate-stage">
-          <div class="road road-top"></div>
+          <div class="road-line"></div>
           <div class="gate-base"></div>
           <div id="barrierArm" class="barrier-arm"></div>
-          <div class="road road-bottom"></div>
-          <div class="spot-chip" id="spotChip">Spot -</div>
         </div>
 
-        <div id="accessBanner" class="access-banner neutral">
-          Waiting for QR ticket validation.
+        <div class="reason-card">
+          <span class="reason-label">Status</span>
+          <p id="gateReason">Closed while waiting for a QR ticket.</p>
         </div>
-
-        <div class="stat-grid">
-          <article class="stat-card">
-            <span class="label">Last Ticket</span>
-            <strong id="lastTicket" class="value mono">-</strong>
-          </article>
-          <article class="stat-card">
-            <span class="label">Payment</span>
-            <strong id="paymentStatus" class="value">-</strong>
-          </article>
-          <article class="stat-card">
-            <span class="label">Driver</span>
-            <strong id="userName" class="value">-</strong>
-          </article>
-          <article class="stat-card">
-            <span class="label">Updated</span>
-            <strong id="lastTimestamp" class="value">-</strong>
-          </article>
-        </div>
-      </div>
-
-      <div class="panel action-panel">
-        <div class="panel-heading compact">
-          <div>
-            <p class="panel-kicker">Live scanner</p>
-            <h2>QR Camera Input</h2>
-          </div>
-        </div>
-
-        <div class="scanner-shell">
-          <div class="scanner-frame">
-            <video id="scannerVideo" class="scanner-video" playsinline muted></video>
-            <div class="scanner-reticle"></div>
-          </div>
-          <div class="camera-row">
-            <label for="cameraSelect">Camera Source</label>
-            <select id="cameraSelect" class="camera-select"></select>
-          </div>
-          <div class="scanner-toolbar">
-            <button id="startScanner" class="action-btn primary">Start Scanner</button>
-            <button id="stopScanner" class="action-btn secondary">Stop Scanner</button>
-          </div>
-          <p id="scannerStatus" class="scanner-status">Scanner idle. Use Chrome or Edge for best QR support.</p>
-          <div class="payload-card">
-            <span class="label">Last QR Payload</span>
-            <code id="lastQrPayload" class="payload-value">-</code>
-          </div>
-        </div>
-
-        <div class="button-grid">
-          <button id="simulateValid" class="action-btn primary" data-ticket="{{ demo_valid_ticket }}">
-            Simulate Paid Ticket
-          </button>
-          <button id="simulateUnpaid" class="action-btn danger" data-ticket="{{ demo_unpaid_ticket }}">
-            Simulate Upcoming Ticket
-          </button>
-          <button id="simulateExpired" class="action-btn ghost" data-ticket="{{ demo_expired_ticket }}">
-            Simulate Expired Ticket
-          </button>
-          <button id="openGateManual" class="action-btn secondary">
-            Open Gate Manually
-          </button>
-          <button id="closeGateManual" class="action-btn secondary">
-            Close Gate Manually
-          </button>
-          <button id="clearLog" class="action-btn ghost">
-            Clear Log
-          </button>
-        </div>
-
-        <div class="manual-form">
-          <label for="manualTicket">Manual Ticket or QR Payload</label>
-          <div class="manual-row">
-            <input id="manualTicket" type="text" placeholder='SMARTS-QR-A12-0001 or {"ticket_code":"SMARTS-QR-A12-0001"}'>
-            <button id="submitCustomTicket" class="action-btn primary slim">Validate</button>
-          </div>
-          <p class="helper-text">Use this to simulate a QR scan request to <code>/api/validate-ticket</code>.</p>
-        </div>
-      </div>
-    </section>
-
-    <section class="metrics-grid">
-      <article class="panel metric-card">
-        <span class="label">Total Events</span>
-        <strong id="metricTotal" class="big-number">0</strong>
-      </article>
-      <article class="panel metric-card">
-        <span class="label">Granted</span>
-        <strong id="metricGranted" class="big-number green">0</strong>
-      </article>
-      <article class="panel metric-card">
-        <span class="label">Denied</span>
-        <strong id="metricDenied" class="big-number red">0</strong>
-      </article>
-      <article class="panel metric-card">
-        <span class="label">Manual Actions</span>
-        <strong id="metricManual" class="big-number cyan">0</strong>
       </article>
     </section>
-
-    <section class="panel log-panel">
-      <div class="panel-heading">
-        <div>
-          <p class="panel-kicker">Audit trail</p>
-          <h2>Access History</h2>
-        </div>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Timestamp</th>
-              <th>Ticket</th>
-              <th>Result</th>
-              <th>Gate Action</th>
-              <th>Reason</th>
-            </tr>
-          </thead>
-          <tbody id="logTableBody"></tbody>
-        </table>
-      </div>
-    </section>
-  </div>
+  </main>
 
   <script>
     window.SMARTS_CONFIG = {

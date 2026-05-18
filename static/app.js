@@ -1,31 +1,12 @@
 const elements = {
   statusPill: document.getElementById("gateStatusPill"),
   barrierArm: document.getElementById("barrierArm"),
-  accessBanner: document.getElementById("accessBanner"),
-  lastTicket: document.getElementById("lastTicket"),
-  paymentStatus: document.getElementById("paymentStatus"),
-  spotChip: document.getElementById("spotChip"),
-  userName: document.getElementById("userName"),
-  lastTimestamp: document.getElementById("lastTimestamp"),
-  lastQrPayload: document.getElementById("lastQrPayload"),
-  metricTotal: document.getElementById("metricTotal"),
-  metricGranted: document.getElementById("metricGranted"),
-  metricDenied: document.getElementById("metricDenied"),
-  metricManual: document.getElementById("metricManual"),
-  logTableBody: document.getElementById("logTableBody"),
+  gateStateTitle: document.getElementById("gateStateTitle"),
+  gateReason: document.getElementById("gateReason"),
   scannerVideo: document.getElementById("scannerVideo"),
   scannerStatus: document.getElementById("scannerStatus"),
-  cameraSelect: document.getElementById("cameraSelect"),
   startScanner: document.getElementById("startScanner"),
   stopScanner: document.getElementById("stopScanner"),
-  simulateValid: document.getElementById("simulateValid"),
-  simulateUnpaid: document.getElementById("simulateUnpaid"),
-  simulateExpired: document.getElementById("simulateExpired"),
-  openGateManual: document.getElementById("openGateManual"),
-  closeGateManual: document.getElementById("closeGateManual"),
-  clearLog: document.getElementById("clearLog"),
-  manualTicket: document.getElementById("manualTicket"),
-  submitCustomTicket: document.getElementById("submitCustomTicket"),
 };
 
 const scannerState = {
@@ -36,83 +17,36 @@ const scannerState = {
   isSubmitting: false,
   canvas: document.createElement("canvas"),
   context: null,
-  devices: [],
 };
 
-function formatTime(value) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-}
-
-function titleize(value) {
-  return String(value || "-")
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function badgeClass(value) {
-  const text = String(value || "").toLowerCase();
-  if (text.includes("granted") || text.includes("opened")) return "granted";
-  if (text.includes("denied") || text.includes("closed")) return "denied";
-  return "manual";
-}
+const reasonCopy = {
+  "Waiting for QR ticket scan.": "Closed while waiting for a QR ticket.",
+  invalid_ticket_format: "Closed because the QR ticket format is invalid.",
+  ticket_not_found: "Closed because the ticket was not found.",
+  spot_mismatch: "Closed because the reserved spot does not match.",
+  plate_mismatch: "Closed because the vehicle plate does not match.",
+  booking_not_started: "Closed because the booking has not started yet.",
+  booking_expired: "Closed because the booking has expired.",
+  valid_booking: "Opened because the QR ticket is valid.",
+  manual_override: "Opened manually by the operator.",
+  manual_close: "Closed by the operator.",
+  auto_close: "Closed automatically after the vehicle passed.",
+};
 
 function setScannerStatus(message) {
   elements.scannerStatus.textContent = message;
 }
 
-function populateCameraOptions(devices) {
-  elements.cameraSelect.innerHTML = "";
-
-  if (!devices.length) {
-    const option = document.createElement("option");
-    option.value = "";
-    option.textContent = "No camera detected";
-    elements.cameraSelect.appendChild(option);
-    elements.cameraSelect.disabled = true;
-    return;
+function describeGate(status) {
+  if (status.reason && reasonCopy[status.reason]) {
+    return reasonCopy[status.reason];
   }
 
-  elements.cameraSelect.disabled = false;
-  devices.forEach((device, index) => {
-    const option = document.createElement("option");
-    option.value = device.deviceId;
-    option.textContent = device.label || `Camera ${index + 1}`;
-    elements.cameraSelect.appendChild(option);
-  });
-}
-
-async function refreshCameraList() {
-  if (!navigator.mediaDevices?.enumerateDevices) {
-    populateCameraOptions([]);
-    return;
+  if (status.gate_status === "OPEN") {
+    return "Opened after successful QR validation.";
   }
 
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  scannerState.devices = devices.filter((device) => device.kind === "videoinput");
-  populateCameraOptions(scannerState.devices);
-}
-
-function getSelectedDeviceId() {
-  return elements.cameraSelect.value || scannerState.devices[0]?.deviceId || "";
-}
-
-function getVideoConstraints() {
-  const deviceId = getSelectedDeviceId();
-  if (deviceId) {
-    return {
-      deviceId: { exact: deviceId },
-      width: { ideal: 1280 },
-      height: { ideal: 720 },
-    };
-  }
-
-  return {
-    width: { ideal: 1280 },
-    height: { ideal: 720 },
-  };
+  return "Closed while waiting for a valid QR ticket.";
 }
 
 function updateStatus(status) {
@@ -120,57 +54,8 @@ function updateStatus(status) {
   elements.statusPill.textContent = status.gate_status;
   elements.statusPill.className = `status-pill ${isOpen ? "open" : "closed"}`;
   elements.barrierArm.classList.toggle("open", isOpen);
-
-  elements.lastTicket.textContent = status.last_ticket_code || "-";
-  elements.lastQrPayload.textContent = status.last_qr_payload || "-";
-  elements.paymentStatus.textContent = status.payment_status || "-";
-  elements.spotChip.textContent = `Spot ${status.spot_number || "-"}`;
-  elements.userName.textContent = status.user_name || "-";
-  elements.lastTimestamp.textContent = formatTime(status.timestamp);
-
-  const stats = status.stats || {};
-  elements.metricTotal.textContent = stats.total_events ?? 0;
-  elements.metricGranted.textContent = stats.granted_count ?? 0;
-  elements.metricDenied.textContent = stats.denied_count ?? 0;
-  elements.metricManual.textContent = stats.manual_actions ?? 0;
-
-  const reasonText = status.reason ? ` - ${titleize(status.reason)}` : "";
-  elements.accessBanner.textContent = `${status.validation_result}${reasonText}`.trim();
-  elements.accessBanner.className = "access-banner neutral";
-
-  if (status.validation_result === "ACCESS GRANTED") {
-    elements.accessBanner.classList.add("granted");
-  } else if (status.validation_result === "ACCESS DENIED") {
-    elements.accessBanner.classList.add("denied");
-  } else if (status.validation_result === "MANUAL OPEN") {
-    elements.accessBanner.classList.add("manual");
-  } else {
-    elements.accessBanner.classList.add("neutral");
-  }
-}
-
-function renderLogs(logs) {
-  elements.logTableBody.innerHTML = "";
-
-  if (!logs.length) {
-    const row = document.createElement("tr");
-    row.className = "empty-row";
-    row.innerHTML = `<td colspan="5">No access events recorded yet.</td>`;
-    elements.logTableBody.appendChild(row);
-    return;
-  }
-
-  for (const entry of logs) {
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${formatTime(entry.timestamp)}</td>
-      <td class="mono">${entry.ticket_code || "-"}</td>
-      <td><span class="result-tag ${badgeClass(entry.result)}">${titleize(entry.result)}</span></td>
-      <td><span class="result-tag ${badgeClass(entry.gate_action)}">${titleize(entry.gate_action)}</span></td>
-      <td>${titleize(entry.reason)}</td>
-    `;
-    elements.logTableBody.appendChild(row);
-  }
+  elements.gateStateTitle.textContent = isOpen ? "Gate open" : "Gate closed";
+  elements.gateReason.textContent = describeGate(status);
 }
 
 async function requestJSON(url, options = {}) {
@@ -187,13 +72,8 @@ async function requestJSON(url, options = {}) {
   return response.json();
 }
 
-async function refreshSnapshot() {
-  const [status, logs] = await Promise.all([
-    requestJSON("/api/gate/status"),
-    requestJSON("/api/access-log"),
-  ]);
-  updateStatus(status);
-  renderLogs(logs);
+async function refreshStatus() {
+  updateStatus(await requestJSON("/api/gate/status"));
 }
 
 function connectWebSocket() {
@@ -204,7 +84,6 @@ function connectWebSocket() {
       const payload = JSON.parse(event.data);
       if (payload.type === "snapshot") {
         updateStatus(payload.status);
-        renderLogs(payload.logs || []);
       }
     } catch (error) {
       console.error("Failed to parse WebSocket payload", error);
@@ -222,27 +101,6 @@ async function validateTicket(payload) {
   return requestJSON("/api/validate-ticket", {
     method: "POST",
     body: JSON.stringify(payload),
-  });
-}
-
-async function openGate() {
-  await requestJSON("/api/gate/open", {
-    method: "POST",
-    body: JSON.stringify({ reason: "manual_override" }),
-  });
-}
-
-async function closeGate() {
-  await requestJSON("/api/gate/close", {
-    method: "POST",
-    body: JSON.stringify({ reason: "manual_close" }),
-  });
-}
-
-async function clearLog() {
-  await requestJSON("/api/access-log/clear", {
-    method: "POST",
-    body: JSON.stringify({}),
   });
 }
 
@@ -312,7 +170,6 @@ async function scanLoop() {
 
     if (rawValue && !scannerState.isSubmitting) {
       scannerState.isSubmitting = true;
-      elements.lastQrPayload.textContent = rawValue;
       setScannerStatus("QR detected. Validating ticket...");
 
       try {
@@ -328,7 +185,7 @@ async function scanLoop() {
     }
   } catch (error) {
     console.error("QR scan failed", error);
-    setScannerStatus("Camera is live, but the frame could not be decoded yet.");
+    setScannerStatus("Camera is live, but the QR code is not readable yet.");
   }
 
   scannerState.timer = window.setTimeout(scanLoop, 180);
@@ -368,14 +225,17 @@ async function startScanner() {
   try {
     scannerState.stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
-      video: getVideoConstraints(),
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+      },
     });
 
     elements.scannerVideo.srcObject = scannerState.stream;
     await elements.scannerVideo.play();
     scannerState.isRunning = true;
-    await refreshCameraList();
-    setScannerStatus(`Scanner active on your computer camera using ${getDecoderModeLabel()}.`);
+    setScannerStatus(`Scanner active using ${getDecoderModeLabel()}.`);
     scanLoop();
   } catch (error) {
     console.error("Unable to start scanner", error);
@@ -384,69 +244,21 @@ async function startScanner() {
   }
 }
 
-async function handleCameraChange() {
-  if (!scannerState.isRunning) {
-    return;
-  }
-
-  await stopScanner({ silent: true });
-  await startScanner();
-}
-
 async function runAction(action, failureMessage) {
   try {
     await action();
   } catch (error) {
     console.error(error);
-    setScannerStatus(failureMessage ? `${failureMessage}: ${error.message}` : error.message);
+    setScannerStatus(`${failureMessage}: ${error.message}`);
   }
 }
 
-elements.simulateValid.addEventListener("click", () => runAction(
-  () => validateTicket({ ticket_code: elements.simulateValid.dataset.ticket }),
-  "Valid ticket simulation failed",
-));
-
-elements.simulateUnpaid.addEventListener("click", () => runAction(
-  () => validateTicket({ ticket_code: elements.simulateUnpaid.dataset.ticket }),
-  "Upcoming ticket simulation failed",
-));
-
-elements.simulateExpired.addEventListener("click", () => runAction(
-  () => validateTicket({ ticket_code: elements.simulateExpired.dataset.ticket }),
-  "Expired ticket simulation failed",
-));
-
-elements.openGateManual.addEventListener("click", () => runAction(openGate, "Manual open failed"));
-elements.closeGateManual.addEventListener("click", () => runAction(closeGate, "Manual close failed"));
-elements.clearLog.addEventListener("click", () => runAction(clearLog, "Log clear failed"));
 elements.startScanner.addEventListener("click", () => runAction(startScanner, "Scanner start failed"));
 elements.stopScanner.addEventListener("click", () => runAction(() => stopScanner(), "Scanner stop failed"));
-elements.cameraSelect.addEventListener("change", () => runAction(handleCameraChange, "Camera switch failed"));
-
-elements.submitCustomTicket.addEventListener("click", () => runAction(async () => {
-  const value = elements.manualTicket.value.trim();
-  if (!value) {
-    setScannerStatus("Enter a ticket code or QR payload first.");
-    return;
-  }
-  await validateTicket({ qr_data: value });
-  elements.manualTicket.value = "";
-}, "Manual validation failed"));
-
-elements.manualTicket.addEventListener("keydown", (event) => {
-  if (event.key !== "Enter") {
-    return;
-  }
-
-  event.preventDefault();
-  elements.submitCustomTicket.click();
-});
 
 window.addEventListener("beforeunload", () => {
   stopScanner({ silent: true }).catch(() => undefined);
 });
 
-refreshSnapshot().catch((error) => console.error(error));
-refreshCameraList().catch((error) => console.error("Unable to list cameras", error));
+refreshStatus().catch((error) => console.error(error));
 connectWebSocket();
