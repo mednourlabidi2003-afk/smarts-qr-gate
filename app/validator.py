@@ -192,82 +192,101 @@ class BookingValidator:
             reservation = session.scalar(
                 select(ReservationRecord).where(func.upper(ReservationRecord.reservation_id) == normalized_ref)
             )
-            if reservation is not None:
-                session.expunge(reservation)
 
-        if reservation is None:
-            return ValidationResult(
-                ticket_code=reservation_ref,
-                normalized_ticket_code=normalized_ref,
-                access_granted=False,
-                reason="ticket_not_found",
-                qr_data=raw_qr or None,
-                timestamp=now,
-            )
+            if reservation is None:
+                return ValidationResult(
+                    ticket_code=reservation_ref,
+                    normalized_ticket_code=normalized_ref,
+                    access_granted=False,
+                    reason="ticket_not_found",
+                    qr_data=raw_qr or None,
+                    timestamp=now,
+                )
 
-        start_time = ensure_utc(reservation.start_time)
-        end_time = ensure_utc(reservation.end_time)
+            start_time = ensure_utc(reservation.start_time)
+            end_time = ensure_utc(reservation.end_time)
 
-        if normalized_spot and normalize_ticket_code(reservation.spot_id) != normalized_spot:
-            return ValidationResult(
-                ticket_code=reservation_ref,
-                normalized_ticket_code=normalized_ref,
-                access_granted=False,
-                reason="spot_mismatch",
-                qr_data=raw_qr or None,
-                payment_status="paid",
-                booking_status="active",
-                spot_id=reservation.spot_id,
-                user_name=reservation.user_id,
-                booking_id=reservation.id,
-                timestamp=now,
-            )
+            if normalized_spot and normalize_ticket_code(reservation.spot_id) != normalized_spot:
+                return ValidationResult(
+                    ticket_code=reservation_ref,
+                    normalized_ticket_code=normalized_ref,
+                    access_granted=False,
+                    reason="spot_mismatch",
+                    qr_data=raw_qr or None,
+                    payment_status="paid",
+                    booking_status="active",
+                    spot_id=reservation.spot_id,
+                    user_name=reservation.user_id,
+                    booking_id=reservation.id,
+                    timestamp=now,
+                )
 
-        db_plate = normalize_plate(reservation.plate)
-        if normalized_plate and db_plate and normalized_plate != db_plate:
-            return ValidationResult(
-                ticket_code=reservation_ref,
-                normalized_ticket_code=normalized_ref,
-                access_granted=False,
-                reason="plate_mismatch",
-                qr_data=raw_qr or None,
-                payment_status="paid",
-                booking_status="active",
-                spot_id=reservation.spot_id,
-                user_name=reservation.user_id,
-                booking_id=reservation.id,
-                timestamp=now,
-            )
+            db_plate = normalize_plate(reservation.plate)
+            if normalized_plate and db_plate and normalized_plate != db_plate:
+                return ValidationResult(
+                    ticket_code=reservation_ref,
+                    normalized_ticket_code=normalized_ref,
+                    access_granted=False,
+                    reason="plate_mismatch",
+                    qr_data=raw_qr or None,
+                    payment_status="paid",
+                    booking_status="active",
+                    spot_id=reservation.spot_id,
+                    user_name=reservation.user_id,
+                    booking_id=reservation.id,
+                    timestamp=now,
+                )
 
-        if now < start_time:
-            return ValidationResult(
-                ticket_code=reservation_ref,
-                normalized_ticket_code=normalized_ref,
-                access_granted=False,
-                reason="booking_not_started",
-                qr_data=raw_qr or None,
-                payment_status="paid",
-                booking_status="upcoming",
-                spot_id=reservation.spot_id,
-                user_name=reservation.user_id,
-                booking_id=reservation.id,
-                timestamp=now,
-            )
+            if now < start_time:
+                return ValidationResult(
+                    ticket_code=reservation_ref,
+                    normalized_ticket_code=normalized_ref,
+                    access_granted=False,
+                    reason="booking_not_started",
+                    qr_data=raw_qr or None,
+                    payment_status="paid",
+                    booking_status="upcoming",
+                    spot_id=reservation.spot_id,
+                    user_name=reservation.user_id,
+                    booking_id=reservation.id,
+                    timestamp=now,
+                )
 
-        if now > end_time:
-            return ValidationResult(
-                ticket_code=reservation_ref,
-                normalized_ticket_code=normalized_ref,
-                access_granted=False,
-                reason="booking_expired",
-                qr_data=raw_qr or None,
-                payment_status="paid",
-                booking_status="expired",
-                spot_id=reservation.spot_id,
-                user_name=reservation.user_id,
-                booking_id=reservation.id,
-                timestamp=now,
-            )
+            if now > end_time:
+                return ValidationResult(
+                    ticket_code=reservation_ref,
+                    normalized_ticket_code=normalized_ref,
+                    access_granted=False,
+                    reason="booking_expired",
+                    qr_data=raw_qr or None,
+                    payment_status="paid",
+                    booking_status="expired",
+                    spot_id=reservation.spot_id,
+                    user_name=reservation.user_id,
+                    booking_id=reservation.id,
+                    timestamp=now,
+                )
+
+            if reservation.used_at is not None:
+                return ValidationResult(
+                    ticket_code=reservation_ref,
+                    normalized_ticket_code=normalized_ref,
+                    access_granted=False,
+                    reason="ticket_already_used",
+                    qr_data=raw_qr or None,
+                    payment_status="paid",
+                    booking_status="used",
+                    spot_id=reservation.spot_id,
+                    user_name=reservation.user_id,
+                    booking_id=reservation.id,
+                    timestamp=now,
+                )
+
+            # Mark the ticket as used atomically before committing.
+            reservation.used_at = now
+            spot_id = reservation.spot_id
+            user_id = reservation.user_id
+            rec_id = reservation.id
 
         return ValidationResult(
             ticket_code=reservation_ref,
@@ -277,8 +296,8 @@ class BookingValidator:
             qr_data=raw_qr or None,
             payment_status="paid",
             booking_status="active",
-            spot_id=reservation.spot_id,
-            user_name=reservation.user_id,
-            booking_id=reservation.id,
+            spot_id=spot_id,
+            user_name=user_id,
+            booking_id=rec_id,
             timestamp=now,
         )

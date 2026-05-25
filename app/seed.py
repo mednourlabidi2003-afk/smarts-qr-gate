@@ -39,11 +39,18 @@ def seed_sample_data(session_factory: sessionmaker[Session]) -> None:
     ]
 
     with session_scope(session_factory) as session:
-        existing = set(session.scalars(select(ReservationRecord.reservation_id)).all())
+        existing = {
+            r.reservation_id: r
+            for r in session.scalars(select(ReservationRecord)).all()
+        }
         for payload in sample_reservations:
             if payload["reservation_id"] in existing:
-                continue
-            session.add(ReservationRecord(**payload))
+                record = existing[payload["reservation_id"]]
+                record.start_time = payload["start_time"]
+                record.end_time = payload["end_time"]
+                record.used_at = None
+            else:
+                session.add(ReservationRecord(**payload))
 
 
 def main() -> None:

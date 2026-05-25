@@ -23,6 +23,7 @@ class ReservationRecord(Base):
     end_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     plate: Mapped[str | None] = mapped_column(String(64), nullable=True, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
 
 
 class AccessLog(Base):
